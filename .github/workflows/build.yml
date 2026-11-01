@@ -1,0 +1,15 @@
+name: Build and check
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run self-checks
+        run: bash scripts/build.sh
+      - name: Archive app
+        run: ditto -c -k --sequesterRsrc --keepParent "build/Awake Lock.app" build/Awake-Lock.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Awake-Lock-macOS
+          path: build/Awake-Lock.zip
