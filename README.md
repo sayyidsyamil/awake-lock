@@ -22,7 +22,7 @@ brew install --cask sayyidsyamil/tap/awake-lock
 
 Or grab `Awake-Lock-0.1.0.zip` from the [latest release](https://github.com/sayyidsyamil/awake-lock/releases/latest), unzip it, and move **Awake Lock.app** to `~/Applications`.
 
-Preview builds are ad-hoc signed, not notarized. A zip saved by a browser carries the quarantine flag, so the first launch is blocked; either install with Homebrew, which avoids the flag, or allow the app once through **System Settings → Privacy & Security → Open Anyway**. Do not disable Gatekeeper globally.
+Preview builds are ad-hoc signed, not notarized. A zip saved by a browser carries the quarantine flag, so the first launch is blocked; either install with Homebrew, whose cask clears the flag, or allow the app once through **System Settings → Privacy & Security → Open Anyway**. Do not disable Gatekeeper globally.
 
 ## Features
 
