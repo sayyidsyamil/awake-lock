@@ -14,6 +14,16 @@ Awake Lock is a small native macOS menu-bar app that prevents automatic idle sle
   <img src="docs/screenshots/dark.png" width="340" alt="Awake Lock dark-mode panel showing an active one-hour session">
 </p>
 
+## Download
+
+```bash
+brew install --cask sayyidsyamil/tap/awake-lock
+```
+
+Or grab `Awake-Lock-0.1.0.zip` from the [latest release](https://github.com/sayyidsyamil/awake-lock/releases/latest), unzip it, and move **Awake Lock.app** to `~/Applications`.
+
+Preview builds are ad-hoc signed, not notarized. A zip saved by a browser carries the quarantine flag, so the first launch is blocked; either install with Homebrew, which avoids the flag, or allow the app once through **System Settings → Privacy & Security → Open Anyway**. Do not disable Gatekeeper globally.
+
 ## Features
 
 - **Timed sessions:** 30 minutes, 1 hour, 2 hours, 4 hours, or a custom duration.
@@ -25,7 +35,7 @@ Awake Lock is a small native macOS menu-bar app that prevents automatic idle sle
 - **Launch at login**, using macOS’s native login-item service.
 - **Light and dark appearance**, a custom icon, and a friendly vector mascot.
 
-## Build and install
+## Build from source
 
 You need macOS 13 or later and Apple’s Command Line Tools. No Xcode project or package manager is required.
 
@@ -38,9 +48,9 @@ bash scripts/build.sh
 bash scripts/install.sh
 ```
 
-The app is installed at **`~/Applications/Awake Lock.app`**. The build script compiles for the current Mac’s architecture, generates an app bundle, applies a local ad-hoc signature, and runs the included self-checks.
+The app is installed at **`~/Applications/Awake Lock.app`**. The build script compiles a universal `arm64` + `x86_64` bundle, applies a signature, and runs the included self-checks.
 
-This preview is **not Developer ID signed or notarized**. For a downloaded prebuilt copy, macOS may require **System Settings → Privacy & Security → Open Anyway**. Do not disable Gatekeeper globally.
+Builds are ad-hoc signed by default. Set `CODESIGN_IDENTITY` to a `Developer ID Application: …` identity to sign for distribution, then run `bash scripts/notarize.sh` to notarize and staple the result.
 
 ## How to use
 
@@ -117,9 +127,8 @@ Awake Lock includes no analytics, accounts, remote services, or network requests
 
 ## Release roadmap
 
-- Developer ID signing and Apple notarization.
+- Developer ID signing and Apple notarization; the pipeline is in place and only needs a certificate.
 - Signed helper installation and authenticated IPC.
-- Universal Apple silicon / Intel release artifacts.
 - Physical charger/lid/crash/reboot testing across MacBook models.
 - Packaged uninstall and helper-repair interface.
 

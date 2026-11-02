@@ -1,0 +1,126 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, e.g. v0.1.0
+        required: true
+permissions:
+  contents: write
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Resolve version
+        id: version
+        run: |
+          VERSION="${{ github.event.inputs.version || github.ref_name }}"
+          VERSION="${VERSION#v}"
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Detect signing material
+        id: signing
+        run: |
+          if [ -n "${{ secrets.CODESIGN_IDENTITY }}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No signing secrets set, producing an ad-hoc signed build."
+          fi
+
+      - name: Import Developer ID certificate
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          security create-keychain -p actions "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p actions "$KEYCHAIN"
+          printf '%s' "$CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" \
+            -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k actions "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" \
+            $(security list-keychains -d user | tr -d '"')
+
+      - name: Set bundle version
+        run: |
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${{ steps.version.outputs.value }}" \
+            Resources/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" \
+            Resources/Info.plist
+
+      - name: Build and test
+        env:
+          CODESIGN_IDENTITY: ${{ secrets.CODESIGN_IDENTITY }}
+        run: bash scripts/build.sh
+
+      - name: Notarize and staple
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          CODESIGN_IDENTITY: ${{ secrets.CODESIGN_IDENTITY }}
+          NOTARY_PROFILE: CI
+        run: |
+          xcrun notarytool store-credentials CI \
+            --apple-id "${{ secrets.APPLE_ID }}" \
+            --team-id "${{ secrets.APPLE_TEAM_ID }}" \
+            --password "${{ secrets.APPLE_APP_PASSWORD }}"
+          bash scripts/notarize.sh
+
+      - name: Package
+        id: package
+        run: |
+          NAME="Awake-Lock-${{ steps.version.outputs.value }}.zip"
+          ditto -c -k --sequesterRsrc --keepParent "build/Awake Lock.app" "build/$NAME"
+          SHA=$(shasum -a 256 "build/$NAME" | cut -d' ' -f1)
+          echo "asset=build/$NAME" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES="Awake Lock ${{ steps.version.outputs.value }}"
+          if [ "${{ steps.signing.outputs.enabled }}" = "true" ]; then
+            NOTES="$NOTES — Developer ID signed and notarized."
+          else
+            NOTES="$NOTES — ad-hoc signed; see the README for first-launch steps."
+          fi
+          gh release create "${{ steps.version.outputs.tag }}" \
+            "${{ steps.package.outputs.asset }}" \
+            --title "Awake Lock ${{ steps.version.outputs.value }}" \
+            --notes "$NOTES" \
+            --verify-tag || \
+          gh release upload "${{ steps.version.outputs.tag }}" \
+            "${{ steps.package.outputs.asset }}" --clobber
+
+      - name: Update Homebrew cask
+        if: secrets.TAP_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ secrets.TAP_TOKEN }}
+        run: |
+          gh api "repos/${{ github.repository_owner }}/homebrew-tap/contents/Casks/awake-lock.rb" \
+            --jq '.content' | base64 --decode > /tmp/cask.rb
+          sed -i '' \
+            -e "s/^  version .*/  version \"${{ steps.version.outputs.value }}\"/" \
+            -e "s/^  sha256 .*/  sha256 \"${{ steps.package.outputs.sha }}\"/" \
+            /tmp/cask.rb
+          gh api -X PUT \
+            "repos/${{ github.repository_owner }}/homebrew-tap/contents/Casks/awake-lock.rb" \
+            -f message="Update Awake Lock to ${{ steps.version.outputs.value }}" \
+            -f content="$(base64 < /tmp/cask.rb)" \
+            -f sha="$(gh api "repos/${{ github.repository_owner }}/homebrew-tap/contents/Casks/awake-lock.rb" --jq '.sha')"
