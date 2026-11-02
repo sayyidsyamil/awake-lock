@@ -37,6 +37,11 @@ jobs:
             echo "enabled=false" >> "$GITHUB_OUTPUT"
             echo "::notice::No signing secrets set, producing an ad-hoc signed build."
           fi
+          if [ -n "${{ secrets.TAP_TOKEN }}" ]; then
+            echo "tap=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tap=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Import Developer ID certificate
         if: steps.signing.outputs.enabled == 'true'
@@ -109,7 +114,7 @@ jobs:
             "${{ steps.package.outputs.asset }}" --clobber
 
       - name: Update Homebrew cask
-        if: secrets.TAP_TOKEN != ''
+        if: steps.signing.outputs.tap == 'true'
         env:
           GH_TOKEN: ${{ secrets.TAP_TOKEN }}
         run: |
@@ -122,5 +127,5 @@ jobs:
           gh api -X PUT \
             "repos/${{ github.repository_owner }}/homebrew-tap/contents/Casks/awake-lock.rb" \
             -f message="Update Awake Lock to ${{ steps.version.outputs.value }}" \
-            -f content="$(base64 < /tmp/cask.rb)" \
+            -f content="$(base64 -i /tmp/cask.rb | tr -d "\n")" \
             -f sha="$(gh api "repos/${{ github.repository_owner }}/homebrew-tap/contents/Casks/awake-lock.rb" --jq '.sha')"
