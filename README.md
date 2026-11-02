@@ -46,7 +46,6 @@ xcode-select --install
 # From a clone or downloaded copy of this repository:
 bash scripts/build.sh
 bash scripts/install.sh
-bash scripts/install.sh
 ```
 
 The app is installed at **`~/Applications/Awake Lock.app`**. The build script compiles a universal `arm64` + `x86_64` bundle, applies a signature, and runs the included self-checks.
