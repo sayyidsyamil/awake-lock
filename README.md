@@ -46,9 +46,12 @@ xcode-select --install
 # From a clone or downloaded copy of this repository:
 bash scripts/build.sh
 bash scripts/install.sh
+bash scripts/install.sh
 ```
 
 The app is installed at **`~/Applications/Awake Lock.app`**. The build script compiles a universal `arm64` + `x86_64` bundle, applies a signature, and runs the included self-checks.
+
+See [docs/RELEASING.md](docs/RELEASING.md) for signing, notarization, and the release process.
 
 Builds are ad-hoc signed by default. Set `CODESIGN_IDENTITY` to a `Developer ID Application: …` identity to sign for distribution, then run `bash scripts/notarize.sh` to notarize and staple the result.
 
